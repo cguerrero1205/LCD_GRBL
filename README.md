@@ -10,7 +10,7 @@ It executes the basic functions, such as:\
 -Read a MicroSD and send the commands to the machine \
 -Among other options that will be added.
 
-Components: 
+Components: \
 -Arduino Mega \
 -Rotary encoder \ 
 -SPI microSD card reader \
