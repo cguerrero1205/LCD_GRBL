@@ -14,4 +14,4 @@ Components: \
 -Arduino Mega \
 -Rotary encoder \
 -SPI microSD card reader \
--LCD screen with i2c module \
+-LCD screen with i2c module
