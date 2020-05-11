@@ -14,4 +14,7 @@ Components: \
 -Arduino Mega \
 -Rotary encoder \
 -SPI microSD card reader \
--LCD screen with i2c module
+-LCD screen with i2c module \
+
+The box to be printed can be downloaded from the following link: \
+https://www.thingiverse.com/thing:4354456
