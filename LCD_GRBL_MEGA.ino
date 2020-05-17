@@ -54,7 +54,7 @@ D4   : SW
 #include <SPI.h>
 #include <SD.h>
 #include <EEPROM.h>
-#include <Encoder.h>
+#include <Encoder.h>  // by Paul Stoffregen, available in the arduino library manager
 
 #define SD_card_Reader   53 
 #define clkPin            2
@@ -77,13 +77,15 @@ char WposZ[9];            // last known Z heighton workpiece, space for 8 charac
 char machineStatus[10];   // last know state (Idle, Run, Hold, Door, Home, Alarm, Check)
 
 bool awaitingOK = false;   // this is set true when we are waiting for the ok signal from the grbl board (see the sendCodeLine() void)
-bool homming = false;
+bool homing = false;
 
 unsigned long runningTime, lastUpdateMenu, timeExit = 5000;
 
 unsigned int numLineTotal = 0, numLineAct = 0;
 
 long oldPosition  = 0;
+
+byte timeDelay = 150, optionSelectLast = 0;
 
 void setup() {
   // display 
@@ -139,7 +141,7 @@ byte fileMenu() {
   bool readySD = true;
   if(!SD.begin(SD_card_Reader)){
     readySD = false;
-    setTextDisplay(F("Error"),F("SD Card Fail!"),"","=>Refresh");
+    setTextDisplay(F("Error"),F("SD Card Fail!")," ","=>Refresh");
     unsigned long timeWithOutPress = millis();
     
     while(millis() - timeWithOutPress <= timeExit){
@@ -160,7 +162,7 @@ byte fileMenu() {
     byte fc = filecount();
   
     fn= getFileName(fileindex);
-    setTextDisplay(F("Files ")," -> " + (String)fn,"",F("Click to select"));
+    setTextDisplay(F("Files ")," -> " + (String)fn," ",F("Click to select"));
     unsigned long timeWithOutPress = millis();
     
     while(millis() - timeWithOutPress <= timeExit){   
@@ -206,19 +208,18 @@ byte fileMenu() {
        }  
        if(newPosition != oldPosition) {
         oldPosition = newPosition;     
-        delay(150);
+        delay(timeDelay);
       }
     }
   }
   return 0;
-  lcd.clear();  
 }
   
 void moveMenu(char axis, float distance){
   lcd.clear();
   String MoveCommand;
   String InitialCommand = "$J=G21G91";
-  String SpeedCommand = "F500";
+  String SpeedCommand = "F1000";
   unsigned long startTime,lastUpdate;
 
   clearRXBuffer();
@@ -261,7 +262,7 @@ void moveMenu(char axis, float distance){
     } 
     if(newPosition != oldPosition) {
       oldPosition = newPosition;     
-      delay(150);
+      delay(timeDelay);
     }
   }
   sendCodeLine(F("G21"),true);
@@ -313,26 +314,32 @@ byte filecount(){
         }  
    }
 }
-  
 
 void setTextDisplay(String line1, String line2, String line3, String line4){
   /*
    This writes text to the display
   */        
+  if(line1 != ""){
     lcd.setCursor(0, 0);
     lcd.print(line1);
     for (int u= line1.length() ; u < 20; u++){ lcd.print(" ");}
+  }
+  if(line2 != ""){
     lcd.setCursor(0, 1);
     lcd.print(line2);
     for (int u= line2.length() ; u < 20; u++){ lcd.print(" ");}
+  }
+  if(line3 != ""){
     lcd.setCursor(0, 2);
     lcd.print(line3);
     for (int u= line3.length() ; u < 20; u++){ lcd.print(" ");}
+  }
+  if(line4 != ""){
     lcd.setCursor(0, 3);
     lcd.print(line4);
-    for (int u= line4.length() ; u < 20; u++){ lcd.print(" ");}       
+    for (int u= line4.length() ; u < 20; u++){ lcd.print(" ");} 
+  }      
 }
-
 
 void sendFile(byte fileIndex){   
   /*
@@ -343,8 +350,8 @@ void sendFile(byte fileIndex){
   String strLine="";
  
   File dataFile;
-  unsigned long lastUpdate;
   
+  unsigned long lastUpdate;
   
   String filename;
   filename= getFileName(fileIndex);
@@ -353,12 +360,9 @@ void sendFile(byte fileIndex){
     setTextDisplay(F("File"),"", F("Error, file not found"),"");
     delay(1000); // show the error
     return;
-    }
+  }
 
-  lcd.clear();
-  lcd.print(F("Loading..."));
-  lcd.setCursor(0, 3);
-  lcd.print(filename);
+  setTextDisplay(F("Loading..."),"","",filename);
 
    // Set the Work Position to zero
   sendCodeLine(F("G90"),true); // absolute coordinates
@@ -380,7 +384,6 @@ void sendFile(byte fileIndex){
   dataFile = SD.open(filename);
   // Read the file and send it to the machine
   while ( dataFile.available() ) {
-    
     if (!awaitingOK) { 
       // If we are not waiting for OK, send the next line      
       strLine = dataFile.readStringUntil('\n'); 
@@ -389,14 +392,14 @@ void sendFile(byte fileIndex){
     }
 
     // get the status of the machine and monitor the receive buffer for OK signals
-    if (millis() - lastUpdate >= 250) {      
-      lastUpdate=millis();  
-      float complete = (float(numLineAct)/float(numLineTotal))*100.0;
-      lcd.setCursor(14, 0);
-      lcd.print(" ");
-      lcd.print(complete,0) ;lcd.print(F("%"));
-      updateDisplayStatus(runningTime);          
-    }
+    if (millis() - lastUpdate >= 250) {   
+        lastUpdate=millis();  
+        float complete = (float(numLineAct)/float(numLineTotal))*100.0;
+        lcd.setCursor(14, 0);
+        lcd.print(" ");
+        lcd.print(complete,0) ;lcd.print(F("%"));
+        updateDisplayStatus(runningTime);          
+    }   
   }
   
   
@@ -406,32 +409,23 @@ void sendFile(byte fileIndex){
    So we query the status until it goes Idle
   */
   
-   while (strcmp (machineStatus,"Idle") != 0) {
+  while (strcmp (machineStatus,"Idle") != 0) {
     delay(250);
-    getStatus();
-    updateDisplayStatus(runningTime);          
-   }
+      getStatus();
+      updateDisplayStatus(runningTime);     
+  }
    // Now it is done.         
-  
-   lcd.setCursor(0, 1);
-   lcd.print(F("     Completed      ")); 
-   lcd.setCursor(0, 2);
-   lcd.print(F("                    ")); 
-//   lcd.setCursor(0, 3);
-//   lcd.print(F("                    "));
+
+   setTextDisplay(F("               100%"),F("   Completed")," ","");
+   
    numLineTotal = 0, numLineAct = 0;
-   lcd.setCursor(15, 0);
-   lcd.print(F("100%   "));
    while (digitalRead(selectPin)==HIGH) {} // Wait for the button to be pressed
    delay(50);
    while (digitalRead(selectPin)==LOW) {} // Wait for the button to be released
    delay(50);
    dataFile.close();
    resetSDReader();
-   return; 
 }
-
-
 
 void updateDisplayStatus(unsigned long runtime){
   /*
@@ -494,7 +488,6 @@ void resetSDReader() {
      delay(2000); 
      }
 }
-
 
 void sendCodeLine(String lineOfCode, bool waitForOk ){
   /*
@@ -567,13 +560,13 @@ String removeIfExists(String lineOfCode,String toBeRemoved ){
   return lineOfCode;
 }
 
-void checkForOk() {
+void checkForOk(){
   // read the receive buffer (if anything to read)
   char c,lastc;
   bool error5 = false;
   c=64;
   lastc=64;
-   while (Serial1.available()) {    
+   while (Serial1.available()) {
     c = Serial1.read();  
     if (lastc==':' && c=='5') error5=true; 
     else if (lastc=='o' && c=='k') {
@@ -610,7 +603,7 @@ void getStatus(){
   Serial1.print(F("?"));  // Ask the machine status
   unsigned long times = millis();
   while (Serial1.available() == 0) {
-    if(homming) setTextDisplay(F("       Homing"),F("       Cycle"),"",F("   Please Wait..."));
+    if(homing) setTextDisplay(F("       Homing"),F("       Cycle")," ",F("   Please Wait..."));
     else if(millis() - times >= 10000) settingMenu();  
   }  // Wait for response 
   while (Serial1.available()) {
@@ -641,25 +634,15 @@ void getStatus(){
   if (WposZ[0]=='-')   
    { WposZ[5]='0';WposZ[6]=0;}
   else 
-   { WposZ[4]='0';WposZ[5]=0;}
-    
+   { WposZ[4]='0';WposZ[5]=0;}    
 }
 
 void menuP(){
-  lcd.clear();
   unsigned long timeWithOutPress = millis();
   byte optionSelect = 1;
-  lcd.setCursor(0, 0);
-  lcd.print("    Main Screen");
-  
-  lcd.setCursor(0, 1);
-  lcd.print("=>Control");
-  
-  lcd.setCursor(0, 2);
-  lcd.print("  Setting");
 
-  lcd.setCursor(0, 3);
-  lcd.print("  Card Menu");
+  setTextDisplay(F("    Main Screen"),F("  Control"),F("  Setting"),F("  Card Menu"));
+  moveOption(optionSelect);
   while(millis() - timeWithOutPress <= timeExit){
     long newPosition = myEnc.read();
     
@@ -693,56 +676,33 @@ void menuP(){
     } 
     if(newPosition != oldPosition) {
       oldPosition = newPosition;     
-      delay(150);
+      delay(timeDelay);
     }  
   }
   lcd.clear();
 }
 
 void controlMenu(){
-  lcd.clear();
-  String table[]={"  Auto Home  ","  Unlock GRBL","  Move Axis    ","  Zero Pos     ","  Spindle Speed", "  Set Origen    ", "  Go to Origen    "};
+  String table[]={"  Auto Home","  Unlock GRBL","  Move Axis","  Reset Zero", "  Return to Zero"};
   unsigned long timeWithOutPress = millis();
   byte optionSelect = 1;
-  lcd.setCursor(0, 0);
-  lcd.print("    Control Menu");
-  
-  lcd.setCursor(0, 1);
-  lcd.print("=>Auto Home");
-  
-  lcd.setCursor(0, 2);
-  lcd.print(table[1]);
-
-  lcd.setCursor(0, 3);
-  lcd.print(table[2]);
+  setTextDisplay(F("    Control Menu"),table[0],table[1],table[2]);
+  optionSelectLast = 0;
+  moveOption(optionSelect);
   
   while(millis() - timeWithOutPress <= timeExit){
     long newPosition = myEnc.read();
     byte diferencia = abs(newPosition - oldPosition);
     if (newPosition > oldPosition && diferencia != 3) {  // Press the button
       timeWithOutPress = millis();
-      if(optionSelect < 7) optionSelect++; 
-      if(optionSelect > 3){       
-        lcd.setCursor(0, 1);
-        lcd.print(table[optionSelect-3]);       
-        lcd.setCursor(0, 2);
-        lcd.print(table[optionSelect-2]);   
-        lcd.setCursor(0, 3);
-        lcd.print(table[optionSelect-1]);
-      }
+      if(optionSelect < 5) optionSelect++; 
+      if(optionSelect > 3) setTextDisplay("",table[optionSelect-3],table[optionSelect-2],table[optionSelect-1]);       
       moveOption(optionSelect); 
     }
     else if (newPosition < oldPosition && diferencia != 3) {  // Press the button
       timeWithOutPress = millis();
       if(optionSelect > 1) optionSelect--;
-      if(optionSelect >= 3){       
-        lcd.setCursor(0, 1);
-        lcd.print(table[optionSelect-3]);     
-        lcd.setCursor(0, 2);
-        lcd.print(table[optionSelect-2]);     
-        lcd.setCursor(0, 3);
-        lcd.print(table[optionSelect-1]);
-      }
+      if(optionSelect >= 3) setTextDisplay("",table[optionSelect-3],table[optionSelect-2],table[optionSelect-1]);      
       moveOption(optionSelect);
     }   
     else if (digitalRead(selectPin)==LOW) {  // Press the button
@@ -750,9 +710,10 @@ void controlMenu(){
       while (digitalRead(selectPin)==LOW) {} // Wait for the button to be released
       switch (optionSelect) {
         case 1: 
-          homming = true;
+          homing = true;
           sendCodeLine(F("$H"),true);
-          homming = false;
+          sendCodeLine(F("G10 P0 L20 X0 Y0 Z0"),true);
+          homing = false;
         break;
         case 2: 
           sendCodeLine(F("$X"),true);
@@ -764,41 +725,26 @@ void controlMenu(){
           sendCodeLine(F("G10 P0 L20 X0 Y0 Z0"),true);
         break;
         case 5: 
-          setTextDisplay("",F("    coming soon!    "),"","");
-          delay(3000);
-        break;
-        case 6: 
-          sendCodeLine(F("G28.1"),true);
-        break;
-        case 7: 
-          sendCodeLine(F("G28"),true);
+          sendCodeLine(F("G90 G0 X0 Y0"),true);
+          sendCodeLine(F("G90 G0 Z0"),true);
         break;
       }
       break;
     }   
     if(newPosition != oldPosition) {
       oldPosition = newPosition;     
-      delay(150);
+      delay(timeDelay);
     }      
   }
   lcd.clear();
 }
 
 void menuMoveAxis(){
-  lcd.clear();
   unsigned long timeWithOutPress = millis();
   byte optionSelect = 1;
-  lcd.setCursor(0, 0);
-  lcd.print("   Main Move Axis");
-  
-  lcd.setCursor(0, 1);
-  lcd.print("=>Move 10.000mm");
-  
-  lcd.setCursor(0, 2);
-  lcd.print("  Move  1.000mm");
 
-  lcd.setCursor(0, 3);
-  lcd.print("  Move  0.100mm");
+  setTextDisplay(F("   Main Move Axis"),F("=>Move 10.000mm"),F("  Move  1.000mm"),F("  Move  0.100mm"));
+  moveOption(optionSelect);
   
   while(millis() - timeWithOutPress <= timeExit){
     long newPosition = myEnc.read();
@@ -831,26 +777,22 @@ void menuMoveAxis(){
     }  
     if(newPosition != oldPosition) {
     oldPosition = newPosition;     
-    delay(150);
+    delay(timeDelay);
     }  
   }
   lcd.clear();
 }
 
 void setAxisToMove(byte distance){
-  lcd.clear();
   unsigned long timeWithOutPress = millis();
   byte optionSelect = 1;
+
   lcd.setCursor(0, 0);
   lcd.print("    Move ");
   lcd.print(float(distance/10.0),3);
   lcd.print("mm");
-  lcd.setCursor(0, 1);
-  lcd.print("=>Move X");
-  lcd.setCursor(0, 2);
-  lcd.print("  Move Y");
-  lcd.setCursor(0, 3);
-  lcd.print("  Move Z");
+
+  setTextDisplay("",F("=>Move X"), F("  Move Y"),F("  Move Z"));
   
   while(millis() - timeWithOutPress <= timeExit){
     long newPosition = myEnc.read();
@@ -883,28 +825,19 @@ void setAxisToMove(byte distance){
     }   
     if(newPosition != oldPosition) {
       oldPosition = newPosition;     
-      delay(150);
+      delay(timeDelay);
     }   
   }
   lcd.clear();
 }
 
 void settingMenu(){
-  lcd.clear();
-  String table[]={"  9600  ","  19200 ","  38400 ","  57600 ","  115200"};
+  String table[]={"  9600","  19200","  38400","  57600","  115200"};
   unsigned long timeWithOutPress = millis();
   byte optionSelect = 1;
-  lcd.setCursor(0, 0);
-  lcd.print("   Baud Rate Menu");
-  
-  lcd.setCursor(0, 1);
-  lcd.print("=>9600");
-  
-  lcd.setCursor(0, 2);
-  lcd.print(table[1]);
 
-  lcd.setCursor(0, 3);
-  lcd.print(table[2]);
+  setTextDisplay(F("   Baud Rate Menu"),table[0],table[1],table[2]);
+  moveOption(optionSelect);
   
   while(millis() - timeWithOutPress <= timeExit){
   long newPosition = myEnc.read();
@@ -912,27 +845,13 @@ void settingMenu(){
     if (newPosition > oldPosition && diferencia != 3) {  // Press the button
       timeWithOutPress = millis();
       if(optionSelect < 5) optionSelect++; 
-      if(optionSelect > 3){       
-        lcd.setCursor(0, 1);
-        lcd.print(table[optionSelect-3]);       
-        lcd.setCursor(0, 2);
-        lcd.print(table[optionSelect-2]);   
-        lcd.setCursor(0, 3);
-        lcd.print(table[optionSelect-1]);
-      }
+      if(optionSelect > 3) setTextDisplay("",table[optionSelect-3],table[optionSelect-2],table[optionSelect-1]);
       moveOption(optionSelect); 
     }
     else if (newPosition < oldPosition && diferencia != 3) {  // Press the button
       timeWithOutPress = millis();
       if(optionSelect > 1) optionSelect--;
-      if(optionSelect >= 3){       
-        lcd.setCursor(0, 1);
-        lcd.print(table[optionSelect-3]);     
-        lcd.setCursor(0, 2);
-        lcd.print(table[optionSelect-2]);     
-        lcd.setCursor(0, 3);
-        lcd.print(table[optionSelect-1]);
-      }
+      if(optionSelect >= 3) setTextDisplay("",table[optionSelect-3],table[optionSelect-2],table[optionSelect-1]);
       moveOption(optionSelect);
     }   
     else if (digitalRead(selectPin)==LOW) {  // Press the button
@@ -960,22 +879,22 @@ void settingMenu(){
     }     
     if(newPosition != oldPosition) {
       oldPosition = newPosition;     
-      delay(150);
+      delay(timeDelay);
     }    
   }
   lcd.clear();
 }
 
-void moveOption(byte optionSelect){
+void moveOption(byte optionSelect){  
   lcd.setCursor(0, 1); lcd.print("  ");  
   lcd.setCursor(0, 2); lcd.print("  ");
   lcd.setCursor(0, 3); lcd.print("  "); 
   if(optionSelect > 3) optionSelect = 3; 
   lcd.setCursor(0, optionSelect);
-  lcd.print("=>"); 
+  lcd.print("=>");  
 }
 
-void loop() {  
+void loop(){  
   if (millis() - lastUpdateMenu >= 250) {      
     lastUpdateMenu=millis();  
     updateDisplayStatus(1);          
