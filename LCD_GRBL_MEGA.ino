@@ -17,6 +17,7 @@ Hardware: Arduino Mega,
          ,rotary encoder
          ,sd card reader with SPI interface
          ,a general 4x20 LCD display with i2c interface
+         ,a button for E-STOP
 
 Limitations: It does not support directories on the SD card, only files in the root directory are supported. Only support GRBL v1.1
       
@@ -77,15 +78,15 @@ char WposZ[9];            // last known Z heighton workpiece, space for 8 charac
 char machineStatus[10];   // last know state (Idle, Run, Hold, Door, Home, Alarm, Check)
 
 bool awaitingOK = false;   // this is set true when we are waiting for the ok signal from the grbl board (see the sendCodeLine() void)
-bool homing = false;
+bool homing = false, modWhileRun = false;
 
-unsigned long runningTime, lastUpdateMenu, timeExit = 5000;
+unsigned long runningTime, lastUpdateMenu,timeWithOutPress, timeExit = 5000, lastButtonCheck;
 
 unsigned int numLineTotal = 0, numLineAct = 0;
 
 long oldPosition  = 0;
 
-byte timeDelay = 150, optionSelectLast = 0;
+byte timeDelay = 150, optionSelectLast;
 
 void setup() {
   // display 
@@ -100,7 +101,7 @@ void setup() {
   pinMode(selectPin,INPUT_PULLUP); 
    
   // Ask to connect (you might still use a computer and NOT connect this controller)
-  setTextDisplay("",F("   Connect to CNC?    "),"","");
+  setTextDisplay(F("   Connect to CNC?"),"",F("    LCD GRBL v1.1"),F(" By Carlos Guerrero"));
   while (digitalRead(selectPin)) {}  // wait for the button to be pressed
   delay(50);
   while (digitalRead(selectPin)==LOW) {} // Wait for the button to be released
@@ -142,7 +143,7 @@ byte fileMenu() {
   if(!SD.begin(SD_card_Reader)){
     readySD = false;
     setTextDisplay(F("Error"),F("SD Card Fail!")," ","=>Refresh");
-    unsigned long timeWithOutPress = millis();
+    timeWithOutPress = millis();
     
     while(millis() - timeWithOutPress <= timeExit){
       if (digitalRead(selectPin)==LOW) {    // Pushed it!           
@@ -163,7 +164,7 @@ byte fileMenu() {
   
     fn= getFileName(fileindex);
     setTextDisplay(F("Files ")," -> " + (String)fn," ",F("Click to select"));
-    unsigned long timeWithOutPress = millis();
+    timeWithOutPress = millis();
     
     while(millis() - timeWithOutPress <= timeExit){   
       long newPosition = myEnc.read();
@@ -341,6 +342,8 @@ void setTextDisplay(String line1, String line2, String line3, String line4){
   }      
 }
 
+bool Exit = false;
+byte varMod;
 void sendFile(byte fileIndex){   
   /*
   This procedure sends the cgode to the grbl shield, line for line, waiting for the ok signal after each line
@@ -354,6 +357,11 @@ void sendFile(byte fileIndex){
   unsigned long lastUpdate;
   
   String filename;
+  varMod = 100;
+  Serial1.write(144); //0x90 reset feed, set to 100%
+  delay(50);
+  Serial1.write(153); //0x91 reset spindle, set to 100%
+  delay(50);
   filename= getFileName(fileIndex);
   dataFile = SD.open(filename);
   if (!dataFile) {
@@ -362,7 +370,7 @@ void sendFile(byte fileIndex){
     return;
   }
 
-  setTextDisplay(F("Loading..."),"","",filename);
+  setTextDisplay(F("Loading...")," "," ",filename);
 
    // Set the Work Position to zero
   sendCodeLine(F("G90"),true); // absolute coordinates
@@ -383,23 +391,28 @@ void sendFile(byte fileIndex){
    
   dataFile = SD.open(filename);
   // Read the file and send it to the machine
-  while ( dataFile.available() ) {
+  while(dataFile.available()){
     if (!awaitingOK) { 
       // If we are not waiting for OK, send the next line      
       strLine = dataFile.readStringUntil('\n'); 
       strLine = ignoreUnsupportedCommands(strLine);
-      if (strLine !="") {sendCodeLine(strLine,true); numLineAct++;}    // sending it!
+      if (strLine != "") {sendCodeLine(strLine,true); numLineAct++;}    // sending it!
     }
 
     // get the status of the machine and monitor the receive buffer for OK signals
-    if (millis() - lastUpdate >= 250) {   
+    if((millis() - lastUpdate >= 250) && (!modWhileRun)){   
         lastUpdate=millis();  
         float complete = (float(numLineAct)/float(numLineTotal))*100.0;
+        complete = round(complete);
         lcd.setCursor(14, 0);
         lcd.print(" ");
         lcd.print(complete,0) ;lcd.print(F("%"));
-        updateDisplayStatus(runningTime);          
+        updateDisplayStatus(runningTime); 
+        setTextDisplay("","","",filename);         
     }   
+    if(modWhileRun) modMenu();
+    else checkButtonSlect();
+    if(Exit) break;
   }
   
   
@@ -408,23 +421,149 @@ void sendFile(byte fileIndex){
    All Gcode lines have been send but the machine may still be processing them
    So we query the status until it goes Idle
   */
-  
-  while (strcmp (machineStatus,"Idle") != 0) {
-    delay(250);
+  if(!Exit){
+    while (strcmp (machineStatus,"Idle") != 0) {
+      delay(250);
       getStatus();
       updateDisplayStatus(runningTime);     
-  }
-   // Now it is done.         
+    }
+    // Now it is done.
+    lcd.setCursor(16, 0);lcd.print("100%");
+    setTextDisplay("",F("     Completed")," ","");
+  }          
+  else setTextDisplay(" ",F("      Aborted!")," "," ");
+  Exit = false;
+  numLineTotal = 0, numLineAct = 0;
+  while (digitalRead(selectPin)==HIGH) {} // Wait for the button to be pressed
+  delay(50);
+  while (digitalRead(selectPin)==LOW) {} // Wait for the button to be released
+  delay(50);
+  dataFile.close();
+  resetSDReader();
+}
 
-   setTextDisplay(F("               100%"),F("   Completed")," ","");
-   
-   numLineTotal = 0, numLineAct = 0;
-   while (digitalRead(selectPin)==HIGH) {} // Wait for the button to be pressed
-   delay(50);
-   while (digitalRead(selectPin)==LOW) {} // Wait for the button to be released
-   delay(50);
-   dataFile.close();
-   resetSDReader();
+void checkButtonSlect(){
+  if(millis() - lastButtonCheck >= timeDelay){  
+    if (digitalRead(selectPin)==LOW) {  // Press the button
+    delay(10);
+    while (digitalRead(selectPin)==LOW) {} // Wait for the button to be released
+    modWhileRun = true;
+  }
+    lastButtonCheck = millis();
+  } 
+}
+
+bool title1 = true, title2 = true, modFeed = false, modSpindle = false;
+byte optionSelectMod = 1;
+void modMenu(){
+  String table[]={"  Abort","  Hold","  Resume","  Feed", "  Spindle"}; 
+  bool resetVar = false;
+  if(title1){
+    setTextDisplay(F("    Control Menu"),table[0],table[1],table[2]);
+    moveOption(optionSelectMod);
+    title1 = false;
+  }  
+  if(millis() - lastButtonCheck >= timeDelay){ 
+    long newPosition = myEnc.read();
+    byte diferencia = abs(newPosition - oldPosition);
+    if(!modFeed && !modSpindle){
+      if (newPosition > oldPosition && diferencia != 3) {  // Press the button
+        lastButtonCheck = millis();
+        if(optionSelectMod < 5) optionSelectMod++; 
+        if(optionSelectMod > 3) setTextDisplay("",table[optionSelectMod-3],table[optionSelectMod-2],table[optionSelectMod-1]);       
+        moveOption(optionSelectMod); 
+      }
+      else if (newPosition < oldPosition && diferencia != 3) {  // Press the button
+        lastButtonCheck = millis();
+        if(optionSelectMod > 1) optionSelectMod--;
+        if(optionSelectMod >= 3) setTextDisplay("",table[optionSelectMod-3],table[optionSelectMod-2],table[optionSelectMod-1]);      
+        moveOption(optionSelectMod);
+      }   
+      else if (digitalRead(selectPin)==LOW) {  // Press the button
+        delay(10);
+        while (digitalRead(selectPin)==LOW) {} // Wait for the button to be released
+        switch (optionSelectMod) {
+          case 1: 
+            /*
+            This stops the machine immediately (feed hold signal)
+            And then sends the soft reset signal to clear the command buffer
+            */
+            Serial1.println(F("!"));  // feed hold
+            delay(20);            
+            Serial1.write(24); // soft reset, clear command buffer          
+            delay(20);            
+            // clear the RX receive buffer
+            clearRXBuffer();
+            Exit = true;
+            resetVar = true;
+          break;
+          case 2: 
+            Serial1.println(F("!"));
+            resetVar = true;
+          break;
+          case 3: 
+            Serial1.println(F("~"));
+            resetVar = true;
+          break;
+          case 4: 
+            modFeed = true;
+          break;
+          case 5: 
+            modSpindle = true;
+          break;
+        }
+      }  
+    }
+    else{
+      if(modFeed){
+        if(title2){
+          setTextDisplay(" ",F("      Mod Feed")," "," ");
+          title2 = false;
+          lcd.setCursor(8, 2);
+          lcd.print(varMod);  lcd.print("% ");
+        }     
+      }
+      else{    
+        if(title2){
+          setTextDisplay(" ",F("     Mod Spindle")," "," ");
+          title2 = false;
+          lcd.setCursor(8, 2);
+          lcd.print(varMod);  lcd.print("% ");
+        }  
+      }
+      if (newPosition > oldPosition && diferencia != 3){
+        lastButtonCheck = millis();
+        if(varMod < 200) varMod += 10;
+        if(modFeed) Serial1.write(145); //0x91
+        else Serial1.write(154); //0x9A
+      }
+      else if (newPosition < oldPosition && diferencia != 3){
+        lastButtonCheck = millis();
+        if(varMod > 10) varMod -= 10;
+        if(modFeed) Serial1.write(146); //0x91
+        else Serial1.write(155); //0x9B
+      }   
+      else if (digitalRead(selectPin)==LOW){
+        delay(10);
+        while (digitalRead(selectPin)==LOW){}
+        resetVar = true;
+      }          
+    }
+    if(newPosition != oldPosition) {
+      oldPosition = newPosition;   
+      if(modFeed || modSpindle){
+         lcd.setCursor(8, 2);
+         lcd.print(varMod);  lcd.print("% ");
+      }
+    }
+  }
+  if(millis() - lastButtonCheck >= timeExit) resetVar = true;    
+  if(resetVar){
+    modWhileRun = false; modFeed = false; modSpindle = false;
+    title1 = true; title2 = true;
+    optionSelectMod = 1;
+    lcd.clear();
+  }
 }
 
 void updateDisplayStatus(unsigned long runtime){
@@ -507,16 +646,17 @@ void sendCodeLine(String lineOfCode, bool waitForOk ){
   // delay(10);
   Serial.println("SendCodeLine calls for CheckForOk");
   checkForOk();  
-  
-  while (waitForOk && awaitingOK) {
+  while(waitForOk && awaitingOK) {
     delay(50);
     // this may take long, so still update the timer on screen every second or so
-    if (updateScreen++ > 4) {
+    if((updateScreen++ > 4) && (!modWhileRun)){
       updateScreen=0;
       updateDisplayStatus(runningTime);
     }
+    if(modWhileRun) modMenu();
+    else checkButtonSlect();
     checkForOk();      
-    }
+  }
 }
   
 void clearRXBuffer(){
@@ -532,21 +672,18 @@ void clearRXBuffer(){
   
 String ignoreUnsupportedCommands(String lineOfCode){
   /*
-  Remove unsupported codes, either because they are unsupported by GRBL or because I choose to.  
+  Remove unsupported codes, either because they are unsupported by GRBL. 
   */
-  removeIfExists(lineOfCode,F("G64"));   // Unsupported: G64 Constant velocity mode 
-  removeIfExists(lineOfCode,F("G40"));   // unsupported: G40 Tool radius comp off 
-  removeIfExists(lineOfCode,F("G41"));   // unsupported: G41 Tool radius compensation left
-  removeIfExists(lineOfCode,F("G81"));   // unsupported: G81 Canned drilling cycle 
-  removeIfExists(lineOfCode,F("G83"));   // unsupported: G83 Deep hole drilling canned cycle 
-  removeIfExists(lineOfCode,F("M6"));    // ignore Tool change
-  removeIfExists(lineOfCode,F("M7"));    // ignore coolant control
-  removeIfExists(lineOfCode,F("M8"));    // ignore coolant control
-  removeIfExists(lineOfCode,F("M9"));    // ignore coolant control
-  removeIfExists(lineOfCode,F("M10"));   // ignore vacuum, pallet clamp
-  removeIfExists(lineOfCode,F("M11"));   // ignore vacuum, pallet clamp
-  removeIfExists(lineOfCode,F("M5"));    // ignore spindle off
-  lineOfCode.replace(F("M2 "),"M5 M2 "); // Shut down spindle on program end.
+  removeIfExists(lineOfCode,F("G4")); 
+  removeIfExists(lineOfCode,F("G10 L2"));
+  removeIfExists(lineOfCode,F("G10 l20"));
+  removeIfExists(lineOfCode,F("G28"));
+  removeIfExists(lineOfCode,F("G30"));
+  removeIfExists(lineOfCode,F("G28.1"));
+  removeIfExists(lineOfCode,F("G30.1"));
+  removeIfExists(lineOfCode,F("G53"));
+  removeIfExists(lineOfCode,F("G92"));
+  removeIfExists(lineOfCode,F("G92.1"));
   
   // Ignore comment lines 
   // Ignore tool commands, I do not support tool changers
@@ -568,7 +705,7 @@ void checkForOk(){
   lastc=64;
    while (Serial1.available()) {
     c = Serial1.read();  
-    if (lastc==':' && c=='5') error5=true; 
+    if (lastc==':' && c=='5') error5 = true; 
     else if (lastc=='o' && c=='k') {
       awaitingOK=false; 
       Serial.println("< OK");
@@ -638,9 +775,8 @@ void getStatus(){
 }
 
 void menuP(){
-  unsigned long timeWithOutPress = millis();
+  timeWithOutPress = millis();
   byte optionSelect = 1;
-
   setTextDisplay(F("    Main Screen"),F("  Control"),F("  Setting"),F("  Card Menu"));
   moveOption(optionSelect);
   while(millis() - timeWithOutPress <= timeExit){
@@ -684,12 +820,10 @@ void menuP(){
 
 void controlMenu(){
   String table[]={"  Auto Home","  Unlock GRBL","  Move Axis","  Reset Zero", "  Return to Zero"};
-  unsigned long timeWithOutPress = millis();
+  timeWithOutPress = millis();
   byte optionSelect = 1;
   setTextDisplay(F("    Control Menu"),table[0],table[1],table[2]);
-  optionSelectLast = 0;
   moveOption(optionSelect);
-  
   while(millis() - timeWithOutPress <= timeExit){
     long newPosition = myEnc.read();
     byte diferencia = abs(newPosition - oldPosition);
@@ -740,12 +874,10 @@ void controlMenu(){
 }
 
 void menuMoveAxis(){
-  unsigned long timeWithOutPress = millis();
+  timeWithOutPress = millis();
   byte optionSelect = 1;
-
-  setTextDisplay(F("   Main Move Axis"),F("=>Move 10.000mm"),F("  Move  1.000mm"),F("  Move  0.100mm"));
+  setTextDisplay(F("   Main Move Axis"),F("  Move 10.000mm"),F("  Move  1.000mm"),F("  Move  0.100mm"));
   moveOption(optionSelect);
-  
   while(millis() - timeWithOutPress <= timeExit){
     long newPosition = myEnc.read();
     byte diferencia = abs(newPosition - oldPosition);
@@ -784,16 +916,14 @@ void menuMoveAxis(){
 }
 
 void setAxisToMove(byte distance){
-  unsigned long timeWithOutPress = millis();
+  timeWithOutPress = millis();
   byte optionSelect = 1;
-
   lcd.setCursor(0, 0);
   lcd.print("    Move ");
   lcd.print(float(distance/10.0),3);
   lcd.print("mm");
-
-  setTextDisplay("",F("=>Move X"), F("  Move Y"),F("  Move Z"));
-  
+  setTextDisplay("",F("  Move X"), F("  Move Y"),F("  Move Z"));
+  moveOption(optionSelect);
   while(millis() - timeWithOutPress <= timeExit){
     long newPosition = myEnc.read();
     byte diferencia = abs(newPosition - oldPosition);
@@ -833,7 +963,7 @@ void setAxisToMove(byte distance){
 
 void settingMenu(){
   String table[]={"  9600","  19200","  38400","  57600","  115200"};
-  unsigned long timeWithOutPress = millis();
+  timeWithOutPress = millis();
   byte optionSelect = 1;
 
   setTextDisplay(F("   Baud Rate Menu"),table[0],table[1],table[2]);
@@ -875,7 +1005,6 @@ void settingMenu(){
         break;
       } 
       asm("jmp 0x0000");     
-      break;
     }     
     if(newPosition != oldPosition) {
       oldPosition = newPosition;     
@@ -886,12 +1015,11 @@ void settingMenu(){
 }
 
 void moveOption(byte optionSelect){  
-  lcd.setCursor(0, 1); lcd.print("  ");  
-  lcd.setCursor(0, 2); lcd.print("  ");
-  lcd.setCursor(0, 3); lcd.print("  "); 
-  if(optionSelect > 3) optionSelect = 3; 
-  lcd.setCursor(0, optionSelect);
-  lcd.print("=>");  
+    if(optionSelect > 3) optionSelect = 3;
+    lcd.setCursor(0, optionSelectLast); lcd.print("  "); 
+    lcd.setCursor(0, optionSelect);
+    lcd.print("=>"); 
+    optionSelectLast = optionSelect;
 }
 
 void loop(){  
