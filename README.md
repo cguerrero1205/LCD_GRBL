@@ -16,6 +16,7 @@ Components: \
 -Arduino Mega \
 -Rotary encoder \
 -SPI microSD card reader \
+-Button for E-STOP \
 -LCD screen with i2c module
 
 The box to be printed can be downloaded from the following link: \
