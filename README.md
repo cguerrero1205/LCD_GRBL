@@ -8,6 +8,8 @@ It executes the basic functions, such as:\
 -Unlock grbl ($X) \
 -Make position 0 (G92 on all axes) \
 -Read a MicroSD and send the commands to the machine \
+-Modify in real time the speed of movement of the machine \
+-Modify in real time the spindle RPM \
 -Among other options that will be added
 
 Components: \
