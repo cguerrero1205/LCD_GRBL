@@ -27,3 +27,6 @@ The file to compile from Arduino IDE, is in the folder LCD_GRBL/src/Codigo.ino
 If you want to work from VSCode and PlatformIO, import the folder containing \
 the platformio.ini file. This folder already has the necessary libraries for the \
 operation of the project, so it will not be necessary to download them.
+
+If you want to collaborate with the project, you can do it through PayPal
+https://www.paypal.com/paypalme/cguerrero1205
