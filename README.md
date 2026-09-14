@@ -22,7 +22,7 @@ Components: \
 The box to be printed can be downloaded from the following link: \
 https://www.thingiverse.com/thing:4354456
 
-The file to compile from Arduino IDE, is in the folder LCD_GRBL/src/Codigo.ino
+The file to compile from Arduino IDE, is in the folder src/Codigo.ino
 
 If you want to work from VSCode and PlatformIO, import the folder containing \
 the platformio.ini file. This folder already has the necessary libraries for the \
