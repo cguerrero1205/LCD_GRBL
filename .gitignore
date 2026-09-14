@@ -1,0 +1,17 @@
+# PlatformIO build artifacts
+.pio/
+.pioenvs/
+.piolibdeps/
+.clang_complete
+.gcc-flags.json
+
+# Compiled object/binary files
+*.o
+*.a
+*.elf
+*.hex
+*.bin
+
+# Editor/OS cruft
+.vscode/
+.DS_Store
