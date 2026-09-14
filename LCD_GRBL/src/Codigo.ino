@@ -674,16 +674,16 @@ String ignoreUnsupportedCommands(String lineOfCode) {
   /*
     Remove unsupported codes, either because they are unsupported by GRBL.
   */
-  removeIfExists(lineOfCode, F("G4"));
-  removeIfExists(lineOfCode, F("G10 L2"));
-  removeIfExists(lineOfCode, F("G10 l20"));
-  removeIfExists(lineOfCode, F("G28"));
-  removeIfExists(lineOfCode, F("G30"));
-  removeIfExists(lineOfCode, F("G28.1"));
-  removeIfExists(lineOfCode, F("G30.1"));
-  removeIfExists(lineOfCode, F("G53"));
-  removeIfExists(lineOfCode, F("G92"));
-  removeIfExists(lineOfCode, F("G92.1"));
+  lineOfCode = removeIfExists(lineOfCode, F("G4"));
+  lineOfCode = removeIfExists(lineOfCode, F("G10 L2"));
+  lineOfCode = removeIfExists(lineOfCode, F("G10 l20"));
+  lineOfCode = removeIfExists(lineOfCode, F("G28"));
+  lineOfCode = removeIfExists(lineOfCode, F("G30"));
+  lineOfCode = removeIfExists(lineOfCode, F("G28.1"));
+  lineOfCode = removeIfExists(lineOfCode, F("G30.1"));
+  lineOfCode = removeIfExists(lineOfCode, F("G53"));
+  lineOfCode = removeIfExists(lineOfCode, F("G92"));
+  lineOfCode = removeIfExists(lineOfCode, F("G92.1"));
 
   // Ignore comment lines
   // Ignore tool commands, I do not support tool changers
