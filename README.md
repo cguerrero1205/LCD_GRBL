@@ -10,6 +10,7 @@ It executes the basic functions, such as:\
 -Read a MicroSD and send the commands to the machine \
 -Modify in real time the speed of movement of the machine \
 -Modify in real time the spindle RPM \
+-Jog X/Y/Z axes and toggle the spindle with physical buttons \
 -Among other options that will be added
 
 Components: \
@@ -17,7 +18,8 @@ Components: \
 -Rotary encoder \
 -SPI microSD card reader \
 -Button for E-STOP \
--LCD screen with i2c module
+-LCD screen with i2c module \
+-7 push buttons for axis jogging and spindle toggle (optional)
 
 The box to be printed can be downloaded from the following link: \
 https://www.thingiverse.com/thing:4354456
