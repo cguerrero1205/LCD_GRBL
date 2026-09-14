@@ -56,6 +56,13 @@
   D2   : CLK
   D3   : DT
   D4   : SW
+  D22  : Jog X+
+  D23  : Jog X-
+  D24  : Jog Y+
+  D25  : Jog Y-
+  D26  : Jog Z+
+  D27  : Jog Z-
+  D28  : Jog spindle toggle
 
 */
 
@@ -324,7 +331,8 @@ void jogButtonsMenu() {
   String InitialCommand = "$J=G21G91";
   String SpeedCommand = "F" + (String)jogFeedRate;
   float d = jogStepDistance / 10.0;
-  setTextDisplay(F("   Jog Buttons"), "Step " + (String)d + "mm", F(""), F("Click to exit"));
+  String stepText = "Step " + String(d, 3) + "mm ";
+  setTextDisplay(F("   Jog Buttons"), "", "", stepText + (spindleOn ? "Sp:ON" : "Sp:OFF"));
 
   unsigned long lastUpdate = millis();
   bool exitMenu = false;
@@ -350,6 +358,7 @@ void jogButtonsMenu() {
     if (digitalRead(jogSpindlePin) == LOW) {
       spindleOn = !spindleOn;
       sendCodeLine(spindleOn ? F("M3 S1000") : F("M5"), true);
+      setTextDisplay("", "", "", stepText + (spindleOn ? "Sp:ON" : "Sp:OFF"));
       while (digitalRead(jogSpindlePin) == LOW) {} // wait for release
       delay(10);
     }
@@ -1155,6 +1164,7 @@ void jogSettingsMenu() {
 
   timeWithOutPress = millis();
   byte optionSelect = 1;
+  bool stepSelected = false;
   setTextDisplay(F("  Jog Step (mm)"), stepTable[0], stepTable[1], stepTable[2]);
   moveOption(optionSelect);
 
@@ -1176,6 +1186,7 @@ void jogSettingsMenu() {
       while (digitalRead(selectPin) == LOW) {}
       jogStepDistance = stepPresets[optionSelect - 1];
       EEPROM.update(1, optionSelect);
+      stepSelected = true;
       break;
     }
     if (newPosition != oldPosition) {
@@ -1184,6 +1195,7 @@ void jogSettingsMenu() {
     }
   }
   lcd.clear();
+  if (!stepSelected) return;
 
   timeWithOutPress = millis();
   optionSelect = 1;

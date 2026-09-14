@@ -74,7 +74,9 @@ kept in global variables rather than passed as parameters — when adding a new 
 that existing convention rather than introducing a different state-management approach.
 
 The serial baud rate to the GRBL board is persisted in EEPROM address 0 (set via `settingMenu()`,
-which then soft-resets the Mega with `asm("jmp 0x0000")` to apply it).
+which then soft-resets the Mega with `asm("jmp 0x0000")` to apply it). EEPROM addresses 1 and 2
+hold the jog step-distance and feed-rate preset indices (set via `jogSettingsMenu()`, no reset
+needed since `Serial1` isn't touched).
 
 ## Other repo contents
 
