@@ -32,6 +32,15 @@
   DT - pin 3
   SW - pin 4
 
+  Jog buttons (momentary, wired to GND, using internal pullups):
+  X+ - pin 22
+  X- - pin 23
+  Y+ - pin 24
+  Y- - pin 25
+  Z+ - pin 26
+  Z- - pin 27
+  Spindle toggle - pin 28
+
   LCD Display
   the LCD display is connected to pins 20 (SDA) and 21 (SCL) (default i2c connections)
 
@@ -62,6 +71,15 @@
 #define clkPin            2
 #define dtPin             3
 #define selectPin         4
+
+// Jog buttons: X/Y/Z +/- move the axis one step, spindle toggles M3/M5
+#define jogXPlusPin      22
+#define jogXMinusPin     23
+#define jogYPlusPin      24
+#define jogYMinusPin     25
+#define jogZPlusPin      26
+#define jogZMinusPin     27
+#define jogSpindlePin    28
 
 #define ENCODER_USE_INTERRUPTS
 
@@ -99,6 +117,13 @@ void setup() {
   pinMode(clkPin, INPUT_PULLUP);
   pinMode(dtPin, INPUT_PULLUP);
   pinMode(selectPin, INPUT_PULLUP);
+  pinMode(jogXPlusPin, INPUT_PULLUP);
+  pinMode(jogXMinusPin, INPUT_PULLUP);
+  pinMode(jogYPlusPin, INPUT_PULLUP);
+  pinMode(jogYMinusPin, INPUT_PULLUP);
+  pinMode(jogZPlusPin, INPUT_PULLUP);
+  pinMode(jogZMinusPin, INPUT_PULLUP);
+  pinMode(jogSpindlePin, INPUT_PULLUP);
 
   // Ask to connect (you might still use a computer and NOT connect this controller)
   setTextDisplay(F("   Connect to CNC?"), "", F("    LCD GRBL v1.1"), F(" By Carlos Guerrero"));
