@@ -126,6 +126,9 @@ void setup() {
     case 5:
       Serial1.begin(115200);
       break;
+    default:
+      Serial1.begin(115200);
+      break;
   }
   sendCodeLine(F("$10=0"), false); // Status report: Enable WPos and Disable MPos
   lcd.clear();
