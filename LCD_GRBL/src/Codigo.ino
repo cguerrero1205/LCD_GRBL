@@ -228,7 +228,7 @@ void moveMenu(char axis, float distance) {
   String MoveCommand;
   String InitialCommand = "$J=G21G91";
   String SpeedCommand = "F1000";
-  unsigned long lastUpdate;
+  unsigned long lastUpdate = millis();
 
   clearRXBuffer();
   float d = distance / 10;
@@ -364,7 +364,7 @@ void sendFile(byte fileIndex) {
 
   File dataFile;
 
-  unsigned long lastUpdate;
+  unsigned long lastUpdate = millis();
 
   String filename;
   varMod = 100;
