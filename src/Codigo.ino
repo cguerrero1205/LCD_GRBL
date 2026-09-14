@@ -941,7 +941,7 @@ void menuP() {
 }
 
 void controlMenu() {
-  String table[] = {"  Unlock GRBL", "  Auto Home", "  Move Axis", "  Reset Zero", "  Return to Zero", "  Spindle Speed"};
+  String table[] = {"  Unlock GRBL", "  Auto Home", "  Move Axis", "  Reset Zero", "  Return to Zero", "  Spindle Speed", "  Jog Buttons", "  Jog Config"};
   timeWithOutPress = millis();
   byte optionSelect = 1;
   setTextDisplay(F("    Control Menu"), table[0], table[1], table[2]);
@@ -951,7 +951,7 @@ void controlMenu() {
     byte diferencia = abs(newPosition - oldPosition);
     if (newPosition > oldPosition && diferencia != 3) {  // Press the button
       timeWithOutPress = millis();
-      if (optionSelect < 6) optionSelect++;
+      if (optionSelect < 8) optionSelect++;
       if (optionSelect > 3) setTextDisplay("", table[optionSelect - 3], table[optionSelect - 2], table[optionSelect - 1]);
       moveOption(optionSelect);
     }
@@ -986,6 +986,12 @@ void controlMenu() {
           break;
         case 6:
           setTextDisplay(F(" "), F("     Coming"), F("      Soon"), F(" "));
+          break;
+        case 7:
+          jogButtonsMenu();
+          break;
+        case 8:
+          jogSettingsMenu();
           break;
       }
       break;
