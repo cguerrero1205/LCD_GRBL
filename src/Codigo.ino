@@ -107,6 +107,10 @@ long oldPosition  = 0;
 
 byte timeDelay = 150, optionSelectLast;
 
+byte jogStepDistance = 10;       // encoded like setAxisToMove(): 100=10.000mm, 10=1.000mm, 1=0.100mm
+unsigned int jogFeedRate = 1000; // mm/min, used by jogButtonsMenu()
+bool spindleOn = false;          // tracks spindle state so the jog spindle button can toggle M3/M5
+
 void setup() {
   // display
   lcd.init();                      // initialize the lcd
@@ -154,6 +158,18 @@ void setup() {
     default:
       Serial1.begin(115200);
       break;
+  }
+  switch (EEPROM.read(1)) {
+    case 1: jogStepDistance = 100; break;
+    case 2: jogStepDistance = 10; break;
+    case 3: jogStepDistance = 1; break;
+    default: jogStepDistance = 10; break;
+  }
+  switch (EEPROM.read(2)) {
+    case 1: jogFeedRate = 500; break;
+    case 2: jogFeedRate = 1000; break;
+    case 3: jogFeedRate = 2000; break;
+    default: jogFeedRate = 1000; break;
   }
   sendCodeLine(F("$10=0"), false); // Status report: Enable WPos and Disable MPos
   lcd.clear();
