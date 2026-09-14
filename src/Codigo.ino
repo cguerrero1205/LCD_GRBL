@@ -1136,6 +1136,82 @@ void settingMenu() {
   lcd.clear();
 }
 
+void jogSettingsMenu() {
+  /*
+    Configure the step distance and feed rate jogButtonsMenu() uses,
+    persisted to EEPROM the same way settingMenu() persists the baud rate.
+    No device reset needed here since Serial1 isn't touched.
+  */
+  String stepTable[] = {"  10.000mm", "  1.000mm", "  0.100mm"};
+  byte stepPresets[] = {100, 10, 1};
+  String feedTable[] = {"  500 mm/min", "  1000 mm/min", "  2000 mm/min"};
+  unsigned int feedPresets[] = {500, 1000, 2000};
+
+  timeWithOutPress = millis();
+  byte optionSelect = 1;
+  setTextDisplay(F("  Jog Step (mm)"), stepTable[0], stepTable[1], stepTable[2]);
+  moveOption(optionSelect);
+
+  while (millis() - timeWithOutPress <= timeExit) {
+    long newPosition = myEnc.read();
+    byte diferencia = abs(newPosition - oldPosition);
+    if (newPosition > oldPosition && diferencia != 3) {
+      timeWithOutPress = millis();
+      if (optionSelect < 3) optionSelect++;
+      moveOption(optionSelect);
+    }
+    else if (newPosition < oldPosition && diferencia != 3) {
+      timeWithOutPress = millis();
+      if (optionSelect > 1) optionSelect--;
+      moveOption(optionSelect);
+    }
+    else if (digitalRead(selectPin) == LOW) {
+      delay(10);
+      while (digitalRead(selectPin) == LOW) {}
+      jogStepDistance = stepPresets[optionSelect - 1];
+      EEPROM.update(1, optionSelect);
+      break;
+    }
+    if (newPosition != oldPosition) {
+      oldPosition = newPosition;
+      delay(timeDelay);
+    }
+  }
+  lcd.clear();
+
+  timeWithOutPress = millis();
+  optionSelect = 1;
+  setTextDisplay(F("  Jog Feed Rate"), feedTable[0], feedTable[1], feedTable[2]);
+  moveOption(optionSelect);
+
+  while (millis() - timeWithOutPress <= timeExit) {
+    long newPosition = myEnc.read();
+    byte diferencia = abs(newPosition - oldPosition);
+    if (newPosition > oldPosition && diferencia != 3) {
+      timeWithOutPress = millis();
+      if (optionSelect < 3) optionSelect++;
+      moveOption(optionSelect);
+    }
+    else if (newPosition < oldPosition && diferencia != 3) {
+      timeWithOutPress = millis();
+      if (optionSelect > 1) optionSelect--;
+      moveOption(optionSelect);
+    }
+    else if (digitalRead(selectPin) == LOW) {
+      delay(10);
+      while (digitalRead(selectPin) == LOW) {}
+      jogFeedRate = feedPresets[optionSelect - 1];
+      EEPROM.update(2, optionSelect);
+      break;
+    }
+    if (newPosition != oldPosition) {
+      oldPosition = newPosition;
+      delay(timeDelay);
+    }
+  }
+  lcd.clear();
+}
+
 void moveOption(byte optionSelect) {
   if (optionSelect > 3) optionSelect = 3;
   lcd.setCursor(0, optionSelectLast); lcd.print(F("  "));
