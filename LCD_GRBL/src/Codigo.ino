@@ -745,7 +745,7 @@ void getStatus() {
     if (homing) setTextDisplay(F("       Homing"), F("       Cycle"), F(" "), F("   Please Wait..."));
     else if (millis() - times >= 10000) settingMenu();
   }  // Wait for response
-  while (Serial1.available()) {
+  while (Serial1.available() && index < sizeof(content) - 1) {
     character = Serial1.read();
     content[index] = character;
     if (content[index] == '>') completeMessage = true; // a simple check to see if the message is complete
