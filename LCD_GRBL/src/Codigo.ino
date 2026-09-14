@@ -126,6 +126,9 @@ void setup() {
     case 5:
       Serial1.begin(115200);
       break;
+    default:
+      Serial1.begin(115200);
+      break;
   }
   sendCodeLine(F("$10=0"), false); // Status report: Enable WPos and Disable MPos
   lcd.clear();
@@ -225,7 +228,7 @@ void moveMenu(char axis, float distance) {
   String MoveCommand;
   String InitialCommand = "$J=G21G91";
   String SpeedCommand = "F1000";
-  unsigned long lastUpdate;
+  unsigned long lastUpdate = millis();
 
   clearRXBuffer();
   float d = distance / 10;
@@ -361,7 +364,7 @@ void sendFile(byte fileIndex) {
 
   File dataFile;
 
-  unsigned long lastUpdate;
+  unsigned long lastUpdate = millis();
 
   String filename;
   varMod = 100;
@@ -692,9 +695,8 @@ String ignoreUnsupportedCommands(String lineOfCode) {
   return lineOfCode;
 }
 
-String removeIfExists(String lineOfCode, String toBeRemoved ) {
-  if (lineOfCode.indexOf(toBeRemoved) >= 0 ) lineOfCode.replace(toBeRemoved, " ");
-  return lineOfCode;
+void removeIfExists(String &lineOfCode, const String &toBeRemoved) {
+  if (lineOfCode.indexOf(toBeRemoved) >= 0) lineOfCode.replace(toBeRemoved, " ");
 }
 
 void checkForOk() {
@@ -743,7 +745,7 @@ void getStatus() {
     if (homing) setTextDisplay(F("       Homing"), F("       Cycle"), F(" "), F("   Please Wait..."));
     else if (millis() - times >= 10000) settingMenu();
   }  // Wait for response
-  while (Serial1.available()) {
+  while (Serial1.available() && index < sizeof(content) - 1) {
     character = Serial1.read();
     content[index] = character;
     if (content[index] == '>') completeMessage = true; // a simple check to see if the message is complete
