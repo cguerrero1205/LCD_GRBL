@@ -312,6 +312,65 @@ void moveMenu(char axis, float distance) {
   sendCodeLine(F("G90"), true); // Switch to relative coordinates
 }
 
+void jogButtonsMenu() {
+  /*
+    Jogs GRBL from 6 momentary buttons (X/Y/Z +/-) plus a spindle toggle
+    button, one $J= jog command per press — the same command moveMenu()
+    sends per encoder tick, just triggered by a button instead.
+    Click the rotary encoder button to exit, same convention as moveMenu().
+  */
+  lcd.clear();
+  clearRXBuffer();
+  String InitialCommand = "$J=G21G91";
+  String SpeedCommand = "F" + (String)jogFeedRate;
+  float d = jogStepDistance / 10.0;
+  setTextDisplay(F("   Jog Buttons"), "Step " + (String)d + "mm", F(""), F("Click to exit"));
+
+  unsigned long lastUpdate = millis();
+  bool exitMenu = false;
+
+  while (!exitMenu) {
+    char axis = 0;
+    float distance = 0;
+    if (digitalRead(jogXPlusPin) == LOW) { axis = 'X'; distance = d; }
+    else if (digitalRead(jogXMinusPin) == LOW) { axis = 'X'; distance = -d; }
+    else if (digitalRead(jogYPlusPin) == LOW) { axis = 'Y'; distance = d; }
+    else if (digitalRead(jogYMinusPin) == LOW) { axis = 'Y'; distance = -d; }
+    else if (digitalRead(jogZPlusPin) == LOW) { axis = 'Z'; distance = d; }
+    else if (digitalRead(jogZMinusPin) == LOW) { axis = 'Z'; distance = -d; }
+
+    if (axis != 0) {
+      sendCodeLine(InitialCommand + axis + distance + SpeedCommand, true);
+      while (digitalRead(jogXPlusPin) == LOW || digitalRead(jogXMinusPin) == LOW ||
+             digitalRead(jogYPlusPin) == LOW || digitalRead(jogYMinusPin) == LOW ||
+             digitalRead(jogZPlusPin) == LOW || digitalRead(jogZMinusPin) == LOW) {} // wait for release
+      delay(10);
+    }
+
+    if (digitalRead(jogSpindlePin) == LOW) {
+      spindleOn = !spindleOn;
+      sendCodeLine(spindleOn ? F("M3 S1000") : F("M5"), true);
+      while (digitalRead(jogSpindlePin) == LOW) {} // wait for release
+      delay(10);
+    }
+
+    if (millis() - lastUpdate >= 250) {
+      getStatus();
+      lastUpdate = millis();
+      updateDisplayStatus(2);
+    }
+
+    if (digitalRead(selectPin) == LOW) { // rotary encoder button exits, same convention as moveMenu()
+      exitMenu = true;
+      while (digitalRead(selectPin) == LOW) {}
+      delay(10);
+    }
+  }
+  sendCodeLine(F("G21"), true);
+  sendCodeLine(F("G90"), true);
+  lcd.clear();
+}
+
 String getFileName(byte i) {
   /*
     Returns a filename.
